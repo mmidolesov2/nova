@@ -339,8 +339,7 @@ class VMwareVMOps(object):
                                 ('shares_share', int)):
                 value = flavor.extra_specs.get('quota:' + resource + '_' + key)
                 if value:
-                    setattr(getattr(extra_specs, resource + '_limits'),
-                            key, type(value))
+                    setattr(getattr(extra_specs, resource + '_limits'), key, type(value))
         extra_specs.cpu_limits.validate()
         extra_specs.memory_limits.validate()
         extra_specs.disk_io_limits.validate()

@@ -609,6 +609,14 @@ class VMwareVMOps(object):
                             lock_file_prefix='nova-vmware-fetch_image'):
             self.check_cache_folder(vi.datastore.name, vi.datastore.ref)
             ds_browser = self._get_ds_browser(vi.datastore.ref)
+
+            if ds_util.file_exists(self._session, ds_browser,
+                                   vi.cache_image_folder,
+                                   vi.cache_image_path.basename):
+                ds_util.file_delete(self._session,
+                                    vi.cache_image_path,
+                                    vi.dc_info.ref)
+
             if not ds_util.file_exists(self._session, ds_browser,
                                        vi.cache_image_folder,
                                        vi.cache_image_path.basename):

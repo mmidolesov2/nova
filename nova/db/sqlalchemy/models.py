@@ -580,8 +580,8 @@ class BlockDeviceMapping(BASE, NovaBase, models.SoftDeleteMixin):
         Index('volume_id', 'volume_id'),
         Index('block_device_mapping_instance_uuid_device_name_idx',
               'instance_uuid', 'device_name'),
-        Index('block_device_mapping_instance_uuid_volume_id_idx',
-              'instance_uuid', 'volume_id'),
+        Index('block_device_mapping_instance_uuid_volume_id_deleted_idx',
+              'instance_uuid', 'volume_id', 'deleted', unique=True),
         Index('block_device_mapping_instance_uuid_idx', 'instance_uuid'),
         schema.UniqueConstraint('uuid', name='uniq_block_device_mapping0uuid'),
     )

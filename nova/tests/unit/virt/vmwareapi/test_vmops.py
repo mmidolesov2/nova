@@ -2063,11 +2063,26 @@ class VMwareVMOpsTestCase(test.NoDBTestCase):
         self._validate_extra_specs(expected, flavor_extra_specs)
 
     def test_video_ram(self):
+        meta_dict = {'id': self._image_id, 'properties': {'hw_video_ram': 120}}
+        flavor = self._get_fake_flavor_for_test_video(meta_dict)
 
-        self._image_meta = objects.ImageMeta.from_dict({'id': self._image_id, 'properties': {'hw_video_ram': 120}})
+        self.assertRaises(exception.RequestedVRamTooHigh,
+                          self._vmops._get_extra_specs,
+                          flavor,
+                          self._image_meta)
+
+    def test_video_ram_if_none(self):
+        meta_dict = {'id': self._image_id, 'properties': {}}
+        flavor = self._get_fake_flavor_for_test_video(meta_dict)
+
+        extra_specs = self._vmops._get_extra_specs(flavor, self._image_meta)
+        self.assertIsNone(extra_specs.hw_video_ram)
+
+    def test_max_video_ram_none(self):
+        meta_dict = {'id': self._image_id, 'properties': {'hw_video_ram': 120}}
+        self._image_meta = objects.ImageMeta.from_dict(meta_dict)
         flavor_extra_specs = {'quota:cpu_limit': 7,
-                              'quota:cpu_reservation': 6,
-                              'hw_video:ram_max_mb':100}
+                              'quota:cpu_reservation': 6}
         flavor = objects.Flavor(name='my-flavor',
                                 memory_mb=6,
                                 vcpus=28,
@@ -2076,10 +2091,51 @@ class VMwareVMOpsTestCase(test.NoDBTestCase):
                                 swap=33550336,
                                 extra_specs=flavor_extra_specs)
 
-        self.assertRaises(exception.RequestedVRamTooHigh,
+        extra_specs = self._vmops._get_extra_specs(flavor, self._image_meta)
+        self.assertIsNotNone(extra_specs.hw_video_ram)
+
+    def test_negative_hw_video_ram(self):
+        meta_dict = {'id': self._image_id, 'properties': {'hw_video_ram': -10}}
+        flavor = self._get_fake_flavor_for_test_video(meta_dict)
+
+        self.assertRaises(exception.NegativeVRamNotAllowed,
                           self._vmops._get_extra_specs,
                           flavor,
                           self._image_meta)
+
+    def test_success_video_ram(self):
+        expected_video_ram = 90
+        meta_dict = {'id': self._image_id, 'properties': {
+            'hw_video_ram': expected_video_ram}}
+        flavor = self._get_fake_flavor_for_test_video(meta_dict)
+
+        extra_specs = self._vmops._get_extra_specs(flavor, self._image_meta)
+        self.assertEqual(self._calculte_expected_fake_video_ram
+                         (expected_video_ram), extra_specs.hw_video_ram)
+
+    def test_zero_video_ram(self):
+        meta_dict = {'id': self._image_id, 'properties': {'hw_video_ram': 0}}
+        flavor = self._get_fake_flavor_for_test_video(meta_dict)
+
+        extra_specs = self._vmops._get_extra_specs(flavor, self._image_meta)
+        self.assertEqual(0, extra_specs.hw_video_ram)
+
+    def _calculte_expected_fake_video_ram(self, amount):
+        return amount * units.Mi / units.Ki
+
+    def _get_fake_flavor_for_test_video(self, meta_dict):
+        self._image_meta = objects.ImageMeta.from_dict(meta_dict)
+        flavor_extra_specs = {'quota:cpu_limit': 7,
+                              'quota:cpu_reservation': 6,
+                              'hw_video:ram_max_mb': 100}
+        flavor = objects.Flavor(name='my-flavor',
+                                memory_mb=6,
+                                vcpus=28,
+                                root_gb=496,
+                                ephemeral_gb=8128,
+                                swap=33550336,
+                                extra_specs=flavor_extra_specs)
+        return flavor
 
     def test_extra_specs_cpu_limit(self):
         flavor_extra_specs = {'quota:cpu_limit': 7}

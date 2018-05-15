@@ -361,18 +361,14 @@ class VMwareVMOps(object):
         extra_specs.hv_enabled = hv_enabled
         extra_specs.hw_version = hw_version
 
-        video_ram = image_meta.properties.get('hw_video_ram')
-        max_vram = int(flavor.extra_specs.get('hw_video:ram_max_mb', -1))
+        video_ram = image_meta.properties.get('hw_video_ram', 0)
+        max_vram = int(flavor.extra_specs.get('hw_video:ram_max_mb', 0))
 
-        if video_ram is not None:
-            if max_vram >= 0 and video_ram > max_vram:
+        if video_ram and max_vram:
+            if video_ram > max_vram:
                 raise exception.RequestedVRamTooHigh(req_vram=video_ram,
                                                      max_vram=max_vram)
-
-            if video_ram < 0:
-                raise exception.NegativeVRamNotAllowed(req_vram=video_ram)
-            else:
-                extra_specs.hw_video_ram = video_ram * units.Mi / units.Ki
+            extra_specs.hw_video_ram = video_ram * units.Mi / units.Ki
 
         if CONF.vmware.pbm_enabled:
             storage_policy = flavor.extra_specs.get('vmware:storage_policy',

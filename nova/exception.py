@@ -1795,11 +1795,6 @@ class RequestedVRamTooHigh(NovaException):
                 "than the maximum allowed by flavor %(max_vram)d.")
 
 
-class NegativeVRamNotAllowed(NovaException):
-    msg_fmt = _("The requested amount of video ram %(req_vram)d is less "
-                "than zero.")
-
-
 class SecurityProxyNegotiationFailed(NovaException):
     msg_fmt = _("Failed to negotiate security type with server: %(reason)s")
 

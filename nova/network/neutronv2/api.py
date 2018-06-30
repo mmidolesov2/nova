@@ -39,6 +39,8 @@ from nova.pci import manager as pci_manager
 from nova.pci import request as pci_request
 from nova.pci import utils as pci_utils
 from nova.pci import whitelist as pci_whitelist
+from nova.network.model import NetworkInfo
+from nova.network.base_api import update_instance_cache_with_nw_info
 from nova.policies import servers as servers_policies
 from nova import profiler
 from nova import service_auth
@@ -1380,7 +1382,7 @@ class API(base_api.NetworkAPI):
         # NOTE(danms): This is an inner method intended to be called
         # by other code that updates instance nwinfo. It *must* be
         # called with the refresh_cache-%(instance_uuid) lock held!
-        LOG.debug('_get_instance_nw_info()', instance=instance)
+        LOG.debug('_get_instance_nw_info()', instance=instance);
         # Ensure that we have an up to date copy of the instance info cache.
         # Otherwise multiple requests could collide and cause cache
         # corruption.
@@ -1388,6 +1390,13 @@ class API(base_api.NetworkAPI):
         nw_info = self._build_network_info_model(context, instance, networks,
                                                  port_ids, admin_client,
                                                  preexisting_port_ids)
+
+        """if nw_info == None or len(nw_info) == 0:
+            LOG.debug("MISSING CACHE TABLE")
+            client = get_client(context, admin=False)
+            self._recover_network_cache(client, context, instance)"""
+
+        LOG.debug("GETTING NW INFO=====================================================================================> ")
         return network_model.NetworkInfo.hydrate(nw_info)
 
     def _gather_port_ids_and_networks(self, context, instance, networks=None,
@@ -2353,6 +2362,14 @@ class API(base_api.NetworkAPI):
             active=vif_active,
             preserve_on_delete=preserve_on_delete)
 
+    def _recover_network_cache(self, client, context, instance):
+        ports = self.list_ports(context, device_id=instance.uuid)["ports"]
+        networks = [client.show_network(network_uuid).get('network') for network_uuid in
+                    set([port["network_id"] for port in ports])]
+        port_ids = [port["id"] for port in ports]
+        nw_info = NetworkInfo(self._get_instance_nw_info(context, instance, port_ids=port_ids, networks=networks))
+        update_instance_cache_with_nw_info(None, context, instance, nw_info=nw_info)
+
     def _build_network_info_model(self, context, instance, networks=None,
                                   port_ids=None, admin_client=None,
                                   preexisting_port_ids=None):
@@ -2385,10 +2402,12 @@ class API(base_api.NetworkAPI):
         data = client.list_ports(**search_opts)
 
         current_neutron_ports = data.get('ports', [])
+        LOG.debug("CURRENT NEUTRON PORTS: -------------------------------------------------> %s" % current_neutron_ports)
         nw_info_refresh = networks is None and port_ids is None
         networks, port_ids = self._gather_port_ids_and_networks(
                 context, instance, networks, port_ids, client)
         nw_info = network_model.NetworkInfo()
+        LOG.debug("NW INFO BEFORE SET ==================================================================================>")
 
         if preexisting_port_ids is None:
             preexisting_port_ids = []
@@ -2406,12 +2425,18 @@ class API(base_api.NetworkAPI):
                 vif = self._build_vif_model(
                     context, client, current_neutron_port, networks,
                     preexisting_port_ids)
+                LOG.debug("VIF=============================================================> %s" % vif)
                 nw_info.append(vif)
             elif nw_info_refresh:
                 LOG.info('Port %s from network info_cache is no '
                          'longer associated with instance in Neutron. '
                          'Removing from network info_cache.', port_id,
                          instance=instance)
+
+        LOG.debug(
+            'NW INFO =======================================================================> %s' % nw_info)
+        """if nw_info is None or len(nw_info) == 0:
+            _recover_network_cache(API(), client, context, instance)"""
 
         return nw_info
 

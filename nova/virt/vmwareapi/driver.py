@@ -627,6 +627,31 @@ class VMwareVCDriver(driver.ComputeDriver):
         """Detach an interface from the instance."""
         self._vmops.detach_interface(context, instance, vif)
 
+    def get_running_tasks(self):
+        vim = self._session.vim
+        task_manager = vim.service_content.taskManager
+
+        client_factory = self._session.vim.client.factory
+        task_filter_spec = client_factory.create('ns0:TaskFilterSpec')
+        task_filter_spec.entity = client_factory.create('ns0:TaskFilterSpecByEntity')
+        task_filter_spec.entity.entity = self._cluster_ref
+        task_filter_spec.entity.recursion = "self"
+        task_filter_spec.state = ["queued", "running"]
+
+        try:
+            task_collector = self._session._call_method(self._session.vim, "CreateCollectorForTasks",
+                                                  self._session.vim.service_content.taskManager, filter=task_filter_spec)
+
+            while True:
+                page_task = self._session.invoke_api(vim, "CreateCollectorForTasks", self._session.vim.service_content.taskManager, filter=task_filter_spec)
+
+        except exception.VimException as e:
+            LOG.debug("Collecting tasks for cluster failed with: %s", e)
+
+
+        LOG.debug("TASK COLLECTOR =======================================================================================> %s" % task_collector)
+
+
 
 class VMwareAPISession(api.VMwareAPISession):
     """Sets up a session with the VC/ESX host and handles all

@@ -1175,6 +1175,9 @@ class ComputeManager(manager.Manager):
         self.instance_events.cancel_all_events()
         self.driver.cleanup_host(host=self.host)
 
+    def get_running_tasks(self):
+        self.driver.get_running_tasks()
+
     def pre_start_hook(self):
         """After the service is initialized, but before we fully bring
         the service up by listening on RPC queues, make sure to update

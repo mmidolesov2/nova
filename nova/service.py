@@ -275,6 +275,8 @@ class Service(service.Service):
 
     def stop(self):
         """stop the service and clean up."""
+        self.manager.get_running_tasks()
+        LOG.debug("STOPING =========================================================================================================> ")
         try:
             self.rpcserver.stop()
             self.rpcserver.wait()

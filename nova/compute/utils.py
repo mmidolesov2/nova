@@ -34,6 +34,8 @@ from nova import objects
 from nova import rpc
 from nova import utils
 from nova.virt import driver
+from nova.network.model import NetworkInfo
+#from nova.network.neutronv2 import api as neutron_api
 
 CONF = cfg.CONF
 CONF.import_opt('host', 'nova.netconf')
@@ -346,7 +348,6 @@ def get_nw_info_for_instance(instance):
     if instance.info_cache is None:
         return network_model.NetworkInfo.hydrate([])
     return instance.info_cache.network_info
-
 
 def refresh_info_cache_for_instance(context, instance):
     """Refresh the info cache for an instance.

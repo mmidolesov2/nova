@@ -100,6 +100,9 @@ from nova.virt import storage_users
 from nova.virt import virtapi
 from nova import volume
 from nova.volume import encryptors
+from nova.network.neutronv2.api import API as neutron_api
+from nova.network.neutronv2 import api
+
 
 compute_opts = [
     cfg.StrOpt('console_host',
@@ -1151,6 +1154,10 @@ class ComputeManager(manager.Manager):
             return
 
         net_info = compute_utils.get_nw_info_for_instance(instance)
+        if not net_info or net_info == "[]":
+            LOG.debug("NET INFO: ============================================== %s" % net_info)
+            client = api.get_client(context, True)
+            neutron_api()._recover_network_cache(client, context, instance)
         try:
             self.driver.plug_vifs(instance, net_info)
         except NotImplementedError as e:

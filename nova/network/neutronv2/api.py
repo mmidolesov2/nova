@@ -29,6 +29,7 @@ from oslo_utils import uuidutils
 import six
 
 from nova.api.openstack import extensions
+from nova.network.model import NetworkInfo
 from nova.compute import utils as compute_utils
 from nova import exception
 from nova import profiler
@@ -181,6 +182,9 @@ class API(base_api.NetworkAPI):
         super(API, self).__init__(skip_policy_check=skip_policy_check)
         self.last_neutron_extension_sync = None
         self.extensions = {}
+
+    def get_neutron_client(self, context, is_admin=False):
+        return get_client(context, is_admin)
 
     def setup_networks_on_host(self, context, instance, host=None,
                                teardown=False):
@@ -922,7 +926,7 @@ class API(base_api.NetworkAPI):
 
     def _get_instance_nw_info(self, context, instance, networks=None,
                               port_ids=None, admin_client=None,
-                              preexisting_port_ids=None, **kwargs):
+                              preexisting_port_ids=None, refreshed=False, **kwargs):
         # NOTE(danms): This is an inner method intended to be called
         # by other code that updates instance nwinfo. It *must* be
         # called with the refresh_cache-%(instance_uuid) lock held!
@@ -933,7 +937,8 @@ class API(base_api.NetworkAPI):
         compute_utils.refresh_info_cache_for_instance(context, instance)
         nw_info = self._build_network_info_model(context, instance, networks,
                                                  port_ids, admin_client,
-                                                 preexisting_port_ids)
+                                                 preexisting_port_ids, refreshed)
+
         return network_model.NetworkInfo.hydrate(nw_info)
 
     def _gather_port_ids_and_networks(self, context, instance, networks=None,
@@ -946,7 +951,6 @@ class API(base_api.NetworkAPI):
                         "networks=None and port_ids=None or port_ids and "
                         "networks as not none.")
             raise exception.NovaException(message=message)
-
         ifaces = compute_utils.get_nw_info_for_instance(instance)
         # This code path is only done when refreshing the network_cache
         if port_ids is None:
@@ -1687,21 +1691,39 @@ class API(base_api.NetworkAPI):
             network['should_create_bridge'] = should_create_bridge
         return network, ovs_interfaceid
 
-    def _get_preexisting_port_ids(self, instance):
+    def _get_preexisting_port_ids(self, instance, context=None):
         """Retrieve the preexisting ports associated with the given instance.
         These ports were not created by nova and hence should not be
         deallocated upon instance deletion.
         """
         net_info = compute_utils.get_nw_info_for_instance(instance)
+
+        client = get_client(context, True)
+        """if not net_info or net_info == "[]":
+            LOG.debug("EMPTY==========================================================> ")
+            self._recover_network_cache(client, context, instance)"""
+
         if not net_info:
             LOG.debug('Instance cache missing network info.',
                       instance=instance)
         return [vif['id'] for vif in net_info
                 if vif.get('preserve_on_delete')]
 
+    def _recover_network_cache(self, client, context, instance):
+        ports = self.list_ports(context, device_id=instance.uuid)["ports"]
+        LOG.debug("PORTS FROM RECOVER ================================================> %s" % ports)
+        networks = [client.show_network(network_uuid).get('network') for network_uuid in
+                    set([port["network_id"] for port in ports])]
+        port_ids = [port["id"] for port in ports]
+        LOG.debug("RRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRR: %s " % port_ids)
+        nw_info = NetworkInfo(self._get_instance_nw_info(context, instance, port_ids=port_ids, networks=networks))
+        LOG.debug("NW_INFO1==============================================> %s" % nw_info)
+        base_api.update_instance_cache_with_nw_info(None, context, instance, nw_info=nw_info)
+
     def _build_network_info_model(self, context, instance, networks=None,
                                   port_ids=None, admin_client=None,
-                                  preexisting_port_ids=None):
+                                  preexisting_port_ids=None, refreshed=False):
+
         """Return list of ordered VIFs attached to instance.
 
         :param context: Request context.
@@ -1720,7 +1742,6 @@ class API(base_api.NetworkAPI):
                         be added to the cached list of preexisting port
                         IDs for this instance.
         """
-
         search_opts = {'tenant_id': instance.project_id,
                        'device_id': instance.uuid, }
         if admin_client is None:
@@ -1738,13 +1759,19 @@ class API(base_api.NetworkAPI):
 
         if preexisting_port_ids is None:
             preexisting_port_ids = []
-        preexisting_port_ids = set(
-            preexisting_port_ids + self._get_preexisting_port_ids(instance))
+
+        #if not nw_info_refreshed:
+        if not refreshed:
+            preexisting_port_ids = set(
+                preexisting_port_ids + self._get_preexisting_port_ids(instance, context))
+        else:
+            return None
 
         current_neutron_port_map = {}
         for current_neutron_port in current_neutron_ports:
             current_neutron_port_map[current_neutron_port['id']] = (
                 current_neutron_port)
+
 
         for port_id in port_ids:
             current_neutron_port = current_neutron_port_map.get(port_id)

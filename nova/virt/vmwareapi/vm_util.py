@@ -1358,6 +1358,7 @@ def get_stats_from_cluster(session, cluster):
                          "HostSystem", host_mors,
                          ["summary.hardware", "summary.runtime",
                           "summary.quickStats"])
+
             for obj in result.objects:
                 host_props = propset_dict(obj.propSet)
                 hardware_summary = host_props['summary.hardware']

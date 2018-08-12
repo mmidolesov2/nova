@@ -1525,13 +1525,13 @@ def get_vmdk_adapter_type(adapter_type):
     return vmdk_adapter_type
 
 
-def create_vm(session, instance, vm_folder, config_spec, res_pool_ref):
+def create_vm(session, instance, vm_folder, config_spec, res_pool_ref, nodes=None):
     """Create VM on ESX host."""
-    LOG.debug("Creating VM on the ESX host", instance=instance)
+
     vm_create_task = session._call_method(
         session.vim,
         "CreateVM_Task", vm_folder,
-        config=config_spec, pool=res_pool_ref)
+        config=config_spec, pool=res_pool_ref, host=nodes[instance.node])
     try:
         task_info = session._wait_for_task(vm_create_task)
     except vexc.VMwareDriverException:

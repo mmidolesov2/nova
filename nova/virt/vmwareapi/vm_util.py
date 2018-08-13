@@ -1321,7 +1321,7 @@ def _get_host_reservations_map(groups=None):
     return hrm
 
 
-def get_stats_from_cluster(session, cluster):
+def get_stats_from_cluster(session, cluster, single_compute_node=None):
     """Get the aggregate resource stats of a cluster."""
     vcpus = 0
     max_vcpus_per_host = 0
@@ -1338,7 +1338,8 @@ def get_stats_from_cluster(session, cluster):
     prop_dict = session._call_method(vutil,
                                      "get_object_properties_dict",
                                      cluster,
-                                     props)
+                                     ["host", "resourcePool"])
+    stats = {}
     if prop_dict:
         failover_hosts = []
         key = 'configuration.dasConfig.admissionControlPolicy'
@@ -1357,13 +1358,18 @@ def get_stats_from_cluster(session, cluster):
                          "get_properties_for_a_collection_of_objects",
                          "HostSystem", host_mors,
                          ["summary.hardware", "summary.runtime",
-                          "summary.quickStats"])
+                          "summary.quickStats", "name"])
 
             for obj in result.objects:
                 host_props = propset_dict(obj.propSet)
                 hardware_summary = host_props['summary.hardware']
                 runtime_summary = host_props['summary.runtime']
                 stats_summary = host_props['summary.quickStats']
+
+                if not CONF.vmware.multi_compute_nodes_support and single_compute_node != None:
+                    name = single_compute_node
+                else:
+                    name = host_props['name']
                 if (runtime_summary.inMaintenanceMode is False and
                     runtime_summary.connectionState == "connected"):
                     # Total vcpus is the sum of all pCPUs of individual hosts
@@ -1373,22 +1379,23 @@ def get_stats_from_cluster(session, cluster):
                     used_mem_mb += stats_summary.overallMemoryUsage
                     mem_mb = hardware_summary.memorySize // units.Mi
                     total_mem_mb += mem_mb
-                    reserved = _get_host_reservations(
-                                        host_reservations_map, obj.obj,
-                                        threads, mem_mb)
-                    reserved_vcpus += reserved['vcpus']
-                    reserved_memory_mb += reserved['memory_mb']
-                    max_vcpus_per_host = max(max_vcpus_per_host,
-                                             threads - reserved['vcpus'])
-                    max_mem_mb_per_host = max(max_mem_mb_per_host,
-                                              mem_mb - reserved['memory_mb'])
-    stats = {'cpu': {'vcpus': vcpus,
-                     'max_vcpus_per_host': max_vcpus_per_host,
-                     'reserved_vcpus': reserved_vcpus},
-             'mem': {'total': total_mem_mb,
-                     'free': total_mem_mb - used_mem_mb,
-                     'max_mem_mb_per_host': max_mem_mb_per_host,
-                     'reserved_memory_mb': reserved_memory_mb}}
+                    max_mem_mb_per_host = max(max_mem_mb_per_host, mem_mb)
+
+                    stats[name] = {'cpu': {'vcpus': vcpus,
+                                     'max_vcpus_per_host': max_vcpus_per_host},
+                             'mem': {'total': total_mem_mb,
+                                     'free': total_mem_mb - used_mem_mb,
+                                     'max_mem_mb_per_host': max_mem_mb_per_host}}
+                else:
+                    vcpus = 0
+                    total_mem_mb = 0
+                    max_mem_mb_per_host = 0
+                    max_vcpus_per_host = 0
+                    stats[name] = {'cpu': {'vcpus': vcpus,
+                                     'max_vcpus_per_host': max_vcpus_per_host},
+                             'mem': {'total': total_mem_mb,
+                                     'free': total_mem_mb - used_mem_mb,
+                                     'max_mem_mb_per_host': max_mem_mb_per_host}}
     return stats
 
 

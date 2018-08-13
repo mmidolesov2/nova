@@ -486,8 +486,13 @@ class VMwareVCDriver(driver.ComputeDriver):
         """Return a dict, keyed by resource class, of inventory information for
         the supplied node.
         """
+        single_compute_node_name = None
+        if not CONF.vmware.multi_compute_nodes_support:
+            single_compute_node_name = self._nodename[0]
+
         stats = vm_util.get_stats_from_cluster(self._session,
-                                               self._cluster_ref)
+                            self._cluster_ref,
+                            single_compute_node=single_compute_node_name)
         datastores = ds_util.get_available_datastores(self._session,
                                                       self._cluster_ref,
                                                       self._datastore_regex)
@@ -496,34 +501,22 @@ class VMwareVCDriver(driver.ComputeDriver):
         reserved_disk_gb = compute_utils.convert_mb_to_ceil_gb(
             CONF.reserved_host_disk_mb)
         result = {
-            obj_fields.ResourceClass.DISK_GB: {
-                'total': total_disk_capacity // units.Gi,
-                'reserved': reserved_disk_gb,
+            obj_fields.ResourceClass.VCPU: {
+                'total': stats[nodename]['cpu']['vcpus'],
+                'reserved': CONF.reserved_host_cpus,
                 'min_unit': 1,
-                'max_unit': max_free_space // units.Gi,
+                'max_unit': stats[nodename]['cpu']['max_vcpus_per_host'],
                 'step_size': 1,
-            }
+
+            },
+            obj_fields.ResourceClass.MEMORY_MB: {
+                'total': stats[nodename]['mem']['total'],
+                'reserved': CONF.reserved_host_memory_mb,
+                'min_unit': 1,
+                'max_unit': stats[nodename]['mem']['max_mem_mb_per_host'],
+                'step_size': 1,
+            },
         }
-        if stats['cpu']['max_vcpus_per_host'] > 0:
-            reserved_vcpus = stats['cpu'].get('reserved_vcpus', 0)
-            reserved_vcpus += CONF.reserved_host_cpus
-            result.update({obj_fields.ResourceClass.VCPU: {
-                'total': stats['cpu']['vcpus'],
-                'reserved': reserved_vcpus,
-                'min_unit': 1,
-                'max_unit': stats['cpu']['max_vcpus_per_host'],
-                'step_size': 1,
-            }})
-        if stats['mem']['max_mem_mb_per_host'] > 0:
-            reserved_memory_mb = stats['mem'].get('reserved_memory_mb', 0)
-            reserved_memory_mb += CONF.reserved_host_memory_mb
-            result.update({obj_fields.ResourceClass.MEMORY_MB: {
-                'total': stats['mem']['total'],
-                'reserved': reserved_memory_mb,
-                'min_unit': 1,
-                'max_unit': stats['mem']['max_mem_mb_per_host'],
-                'step_size': 1,
-            }})
         return result
 
     def spawn(self, context, instance, image_meta, injected_files,

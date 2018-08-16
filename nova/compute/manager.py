@@ -5848,7 +5848,6 @@ class ComputeManager(manager.Manager):
                                                             disk_over_commit)
 
     def get_migrate_server_data(self, context, instance, migrate_data):
-        LOG.debug("SERVER DATA ====================================>")
         data = self.driver.get_server_data(context, instance, migrate_data)
         return data
 
@@ -5856,6 +5855,7 @@ class ComputeManager(manager.Manager):
     @wrap_instance_event
     @wrap_instance_fault
     def neutron_bind_port(self, context, instance, host):
+        LOG.debug("INSIDE MANAGER NEUTRON BIND PORT =====================================>")
         self.driver.neutron_bind_port(context, instance, host)
 
     def _do_check_can_live_migrate_destination(self, ctxt, instance,
@@ -5985,8 +5985,8 @@ class ComputeManager(manager.Manager):
                                        network_info,
                                        disk,
                                        migrate_data)
-        LOG.debug("DATAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA: %s" % vm_networks[0])
-        migrate_data.target_bridge_name = vm_networks[0]
+
+        migrate_data.target_bridge_name = vm_networks
         LOG.debug('driver pre_live_migration data is %s', migrate_data)
 
         # Volume connections are complete, tell cinder that all the
@@ -6027,7 +6027,6 @@ class ComputeManager(manager.Manager):
         # done on source/destination. For now, this is just here for status
         # reporting
         server_data = self.compute_rpcapi.get_source_server_data(context, instance, dest, migrate_data)
-        LOG.debug("SERVER DATA: %s", server_data)
         self._set_migration_status(migration, 'preparing')
 
         try:
@@ -6041,8 +6040,6 @@ class ComputeManager(manager.Manager):
                 disk = None
 
             vm_networks = self.driver.get_instance_network(instance)
-            LOG.debug("TYPE VM NETWORKS ===========================> %s" % type(vm_networks[0]))
-            LOG.debug("TYPE VM NETWORKS ===========================> %s" % vm_networks)
             migrate_data = self.compute_rpcapi.pre_live_migration(
                 context, instance,
                 block_migration, disk, dest, migrate_data, vm_networks)
@@ -6068,7 +6065,6 @@ class ComputeManager(manager.Manager):
                                        self._rollback_live_migration,
                                        block_migration, migrate_data, server_data)
 
-            self.compute_rpcapi.neutron_bind_port(context, instance, dest)
         except Exception:
             LOG.exception('Live migration failed.', instance=instance)
             with excutils.save_and_reraise_exception():
@@ -6080,6 +6076,11 @@ class ComputeManager(manager.Manager):
                 instance.refresh()
                 self._set_instance_obj_error_state(context, instance,
                                                    clean_task_state=True)
+
+        try:
+            self.compute_rpcapi.neutron_bind_port(context, instance, dest)
+        except Exception as e:
+            LOG.error("ERROR ================================================> %s" % e)
 
     @wrap_exception()
     @wrap_instance_event(prefix='compute')
@@ -6255,6 +6256,7 @@ class ComputeManager(manager.Manager):
         self._notify_about_instance_usage(ctxt, instance,
                                           "live_migration._post.start",
                                           network_info=network_info)
+
         # Releasing security group ingress rule.
         LOG.debug('Calling driver.unfilter_instance from _post_live_migration',
                   instance=instance)
@@ -6311,8 +6313,8 @@ class ComputeManager(manager.Manager):
 
         # NOTE(timello): make sure we update available resources on source
         # host even before next periodic task.
-        self.update_available_resource(ctxt)
 
+        self.update_available_resource(ctxt)
         self._update_scheduler_instance_info(ctxt, instance)
         self._notify_about_instance_usage(ctxt, instance,
                                           "live_migration._post.end",
@@ -6374,7 +6376,6 @@ class ComputeManager(manager.Manager):
         """
         LOG.info('Post operation of migration started',
                  instance=instance)
-
         # NOTE(tr3buchet): setup networks on destination host
         #                  this is called a second time because
         #                  multi_host does not create the bridge in
@@ -6420,6 +6421,8 @@ class ComputeManager(manager.Manager):
                 instance.node = node_name
                 instance.progress = 0
                 instance.save(expected_task_state=task_states.MIGRATING)
+
+        LOG.debug("INSTANCE AFTER MIGRATION =========================================> %s" % instance)
 
         # NOTE(tr3buchet): tear down networks on source host
         self.network_api.setup_networks_on_host(context, instance,

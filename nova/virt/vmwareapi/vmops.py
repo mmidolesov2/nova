@@ -322,7 +322,7 @@ class VMwareVMOps(object):
                                            utils.is_neutron(),
                                            image_info.vif_model,
                                            network_info)
-
+        extra_specs.storage_policy = "EncryptionTest Policy"
         if extra_specs.storage_policy:
             profile_spec = vm_util.get_storage_profile_spec(
                 self._session, extra_specs.storage_policy)
@@ -338,7 +338,8 @@ class VMwareVMOps(object):
                                                  image_info.os_type,
                                                  profile_spec=profile_spec,
                                                  metadata=metadata,
-                                                 vm_name=vm_name)
+                                                 vm_name=vm_name,
+                                                 session=self._session)
 
         return config_spec
 
@@ -2328,7 +2329,7 @@ class VMwareVMOps(object):
                 vm_ref, vi.instance,
                 vi.ii.adapter_type, vi.ii.disk_type,
                 str(sized_disk_ds_loc),
-                vi.root_gb * units.Mi, vi.ii.linked_clone,
+                vi.root_gb * units.Mi, False,
                 disk_io_limits=vi._extra_specs.disk_io_limits)
 
     def _use_iso_image(self, vm_ref, vi):

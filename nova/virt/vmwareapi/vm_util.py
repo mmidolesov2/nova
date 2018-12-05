@@ -233,7 +233,8 @@ def append_vif_infos_to_config_spec(client_factory, config_spec, vif_infos, vif_
 def get_vm_create_spec(client_factory, instance, data_store_name,
                        vif_infos, extra_specs,
                        os_type=constants.DEFAULT_OS_TYPE,
-                       profile_spec=None, metadata=None, vm_name=None):
+                       profile_spec=None, metadata=None, vm_name=None,
+                       session=None):
     """Builds the VM Create spec."""
     config_spec = client_factory.create('ns0:VirtualMachineConfigSpec')
     config_spec.name = vm_name or instance.uuid
@@ -248,6 +249,9 @@ def get_vm_create_spec(client_factory, instance, data_store_name,
     # Allow nested hypervisor instances to host 64 bit VMs.
     if (os_type in ("vmkernel5Guest", "vmkernel6Guest", "windowsHyperVGuest")) or (extra_specs.hv_enabled == "True"):
         config_spec.nestedHVEnabled = "True"
+
+    crypto_spec = __create_crypto_spec(session, client_factory)
+    config_spec.crypto = crypto_spec
 
     # Append the profile spec
     if profile_spec:
@@ -575,7 +579,8 @@ def get_vmdk_attach_config_spec(client_factory,
                                 controller_key=None,
                                 unit_number=None,
                                 device_name=None,
-                                disk_io_limits=None):
+                                disk_io_limits=None,
+                                session=None):
     """Builds the vmdk attach config spec."""
     config_spec = client_factory.create('ns0:VirtualMachineConfigSpec')
 
@@ -583,7 +588,8 @@ def get_vmdk_attach_config_spec(client_factory,
     virtual_device_config_spec = _create_virtual_disk_spec(client_factory,
                                 controller_key, disk_type, file_path,
                                 disk_size, linked_clone,
-                                unit_number, device_name, disk_io_limits)
+                                unit_number, device_name, disk_io_limits,
+                                                           session)
 
     device_config_spec.append(virtual_device_config_spec)
 
@@ -886,7 +892,8 @@ def _create_virtual_disk_spec(client_factory, controller_key,
                               linked_clone=False,
                               unit_number=None,
                               device_name=None,
-                              disk_io_limits=None):
+                              disk_io_limits=None,
+                              session=None):
     """Builds spec for the creation of a new/ attaching of an already existing
     Virtual Disk to the VM.
     """
@@ -908,6 +915,11 @@ def _create_virtual_disk_spec(client_factory, controller_key,
     else:
         disk_file_backing = client_factory.create(
                             'ns0:VirtualDiskFlatVer2BackingInfo')
+        generate_key_task = session._call_method(
+            session.vim,
+            "GenerateKey",
+            session.vim.service_content.cryptoManager)
+        disk_file_backing.keyId = generate_key_task.keyId
         disk_file_backing.diskMode = "persistent"
         if disk_type == constants.DISK_TYPE_THIN:
             disk_file_backing.thinProvisioned = True
@@ -943,6 +955,24 @@ def _create_virtual_disk_spec(client_factory, controller_key,
             'ns0:StorageIOAllocationInfo')
 
     virtual_device_config.device = virtual_disk
+
+    return virtual_device_config
+
+
+def get_encrypt_spec(session, client_factory, device):
+
+    virtual_device_config = client_factory.create(
+        'ns0:VirtualDeviceConfigSpec')
+    virtual_device_config.operation = "edit"
+
+    virtual_device_config.device = device
+    storage_policy = "EncryptionTest Policy"
+    if storage_policy:
+        profile_spec = get_storage_profile_spec(
+            session, storage_policy)
+    else:
+        profile_spec = None
+    virtual_device_config.profile = [profile_spec]
 
     return virtual_device_config
 
@@ -1045,6 +1075,21 @@ def get_vnc_config_spec(client_factory, port):
     virtual_machine_config_spec.extraConfig = extras
     return virtual_machine_config_spec
 
+
+def __create_crypto_spec(session, client_factory):
+    """
+    Builds crypto spec for VirtualMachineConfigSpec
+    Used for encrypting virtual the virtual machine
+    """
+    generate_key_task = session._call_method(
+        session.vim,
+        "GenerateKey",
+        session.vim.service_content.cryptoManager)
+
+    crypto_spec = client_factory.create('ns0:CryptoSpecEncrypt')
+    crypto_spec.cryptoKeyId = generate_key_task.keyId
+
+    return crypto_spec
 
 def get_vnc_port(session):
     """Return VNC port for an VM or None if there is no available port."""

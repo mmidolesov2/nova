@@ -59,7 +59,8 @@ class VMwareVolumeOps(object):
         vmdk_attach_config_spec = vm_util.get_vmdk_attach_config_spec(
                                     client_factory, disk_type, vmdk_path,
                                     disk_size, linked_clone, controller_key,
-                                    unit_number, device_name, disk_io_limits)
+                                    unit_number, device_name, disk_io_limits,
+                                    self._session)
         if controller_spec:
             vmdk_attach_config_spec.deviceChange.append(controller_spec)
 
@@ -76,6 +77,33 @@ class VMwareVolumeOps(object):
                   {'vm_ref': vm_ref.value, 'vmdk_path': vmdk_path,
                    'device_name': device_name, 'disk_type': disk_type},
                   instance=instance)
+
+        self.encrypt_virtual_disk(self._session, client_factory, vm_ref)
+
+    def encrypt_virtual_disk(self, session, client_factory, vm_ref):
+
+        config_spec = client_factory.create('ns0:VirtualMachineConfigSpec')
+
+        device_config_spec = []
+        devices = self._session._call_method(vutil,
+                                             "get_object_property",
+                                             vm_ref,
+                                             "config.hardware.device")
+
+        if devices.__class__.__name__ == "ArrayOfVirtualDevice":
+            devices = devices.VirtualDevice
+
+        virtual_disk_device = None
+        for device in devices:
+            if device.__class__.__name__ == "VirtualDisk":
+                virtual_disk_device = device
+                break
+
+        device_spec = vm_util.get_encrypt_spec(session, client_factory, virtual_disk_device)
+        device_config_spec.append(device_spec)
+
+        config_spec.deviceChange = device_config_spec
+        vm_util.reconfigure_vm(self._session, vm_ref, config_spec)
 
     def _update_volume_details(self, vm_ref, volume_uuid, device_uuid):
         # Store the uuid of the volume_device

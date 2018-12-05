@@ -213,7 +213,7 @@ the connection pool is full, otherwise, the default should suffice.
 
 spbm_opts = [
     cfg.BoolOpt('pbm_enabled',
-                default=False,
+                default=True,
                 help="""
 This option enables or disables storage policy based placement
 of instances.
@@ -235,6 +235,7 @@ Possible values:
   e.g file:///opt/SDK/spbm/wsdl/pbmService.wsdl
 """),
     cfg.StrOpt('pbm_default_policy',
+               default="Default Policy",
                help="""
 This option specifies the default policy to be used.
 

@@ -322,7 +322,9 @@ class VMwareVMOps(object):
                                            utils.is_neutron(),
                                            image_info.vif_model,
                                            network_info)
-        extra_specs.storage_policy = "EncryptionTest Policy"
+
+        if CONF.vmware.disk_encryption_enabled:
+            extra_specs.storage_policy = CONF.vmware.pbm_encryption_policy
         if extra_specs.storage_policy:
             profile_spec = vm_util.get_storage_profile_spec(
                 self._session, extra_specs.storage_policy)

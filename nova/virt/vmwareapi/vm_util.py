@@ -250,8 +250,9 @@ def get_vm_create_spec(client_factory, instance, data_store_name,
     if (os_type in ("vmkernel5Guest", "vmkernel6Guest", "windowsHyperVGuest")) or (extra_specs.hv_enabled == "True"):
         config_spec.nestedHVEnabled = "True"
 
-    crypto_spec = __create_crypto_spec(session, client_factory)
-    config_spec.crypto = crypto_spec
+    if CONF.vmware.disk_encryption_enabled:
+        crypto_spec = __create_crypto_spec(session, client_factory)
+        config_spec.crypto = crypto_spec
 
     # Append the profile spec
     if profile_spec:
@@ -966,10 +967,9 @@ def get_encrypt_spec(session, client_factory, device):
     virtual_device_config.operation = "edit"
 
     virtual_device_config.device = device
-    storage_policy = "EncryptionTest Policy"
-    if storage_policy:
+    if CONF.vmware.pbm_encryption_policy:
         profile_spec = get_storage_profile_spec(
-            session, storage_policy)
+            session, CONF.vmware.pbm_encryption_policy)
     else:
         profile_spec = None
     virtual_device_config.profile = [profile_spec]

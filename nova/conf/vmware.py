@@ -250,6 +250,35 @@ Related options:
 
 * pbm_enabled
 """),
+cfg.StrOpt('disk_encryption_enabled',
+               default=False,
+               help="""
+This option specifies weather or not encyption policy should be applied
+on the volumes.
+
+* True/False boolean value 
+
+Related options:
+
+* pbm_enabled
+* pbm_encryption_policy
+"""),
+cfg.StrOpt('pbm_encryption_policy',
+               default="EncryptionTest Policy",
+               help="""
+This option specifies the encryption policy to be used.
+
+If pbm_enabled is set and there is a flag that a encryption storage 
+policy will be used, then this policy will be used.
+
+Possible values:
+
+* Any valid storage policy such as EncryptionTest Policy  default storage policy
+
+Related options:
+
+* pbm_enabled
+""")
 ]
 
 vmops_opts = [

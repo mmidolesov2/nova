@@ -316,7 +316,7 @@ class VMwareVMOps(object):
 
     def _get_vm_config_spec(self, instance, image_info,
                             datastore, network_info, extra_specs,
-                            metadata, vm_name=None):
+                            metadata, vm_name=None, context=None):
         vif_infos = vmwarevif.get_vif_info(self._session,
                                            self._cluster,
                                            utils.is_neutron(),
@@ -341,7 +341,8 @@ class VMwareVMOps(object):
                                                  profile_spec=profile_spec,
                                                  metadata=metadata,
                                                  vm_name=vm_name,
-                                                 session=self._session)
+                                                 session=self._session,
+                                                 context=context)
 
         return config_spec
 
@@ -350,7 +351,7 @@ class VMwareVMOps(object):
                               metadata, folder_type='Instances', vm_name=None):
         config_spec = self._get_vm_config_spec(instance, image_info, datastore,
                                                network_info, extra_specs, metadata,
-                                               vm_name=vm_name)
+                                               vm_name=vm_name, context=context)
 
         folder = self._get_project_folder(dc_info, project_id=instance.project_id, type_=folder_type)
 

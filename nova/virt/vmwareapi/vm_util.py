@@ -18,6 +18,7 @@
 The VMware API VM utility module to build SOAP object specs.
 """
 
+import binascii
 import collections
 import copy
 import functools
@@ -29,7 +30,9 @@ from oslo_vmware import exceptions as vexc
 from oslo_vmware.objects import datastore as ds_obj
 from oslo_vmware import pbm
 from oslo_vmware import vim_util as vutil
-
+from barbicanclient.v1 import client as barbican_client
+from keystoneauth1 import session as ks_session
+from keystoneauth1 import loading as ks_loading
 
 import nova.conf
 from nova import exception
@@ -234,7 +237,7 @@ def get_vm_create_spec(client_factory, instance, data_store_name,
                        vif_infos, extra_specs,
                        os_type=constants.DEFAULT_OS_TYPE,
                        profile_spec=None, metadata=None, vm_name=None,
-                       session=None):
+                       session=None, context=None):
     """Builds the VM Create spec."""
     config_spec = client_factory.create('ns0:VirtualMachineConfigSpec')
     config_spec.name = vm_name or instance.uuid
@@ -251,7 +254,7 @@ def get_vm_create_spec(client_factory, instance, data_store_name,
         config_spec.nestedHVEnabled = "True"
 
     if CONF.vmware.disk_encryption_enabled:
-        crypto_spec = __create_crypto_spec(session, client_factory)
+        crypto_spec = __create_crypto_spec(session, client_factory, context=context)
         config_spec.crypto = crypto_spec
 
     # Append the profile spec
@@ -1076,11 +1079,27 @@ def get_vnc_config_spec(client_factory, port):
     return virtual_machine_config_spec
 
 
-def __create_crypto_spec(session, client_factory):
+def __create_crypto_spec(session, client_factory, context=None):
     """
     Builds crypto spec for VirtualMachineConfigSpec
-    Used for encrypting virtual the virtual machine
+    Used for encrypting the virtual machine
     """
+    # from castellan import key_manager
+    #
+    # if context is not None:
+    #     LOG.debug('CONTEXT IS NOT NONE =================================================>')
+    #     key_manager = key_manager.API(CONF)
+    #
+    #     cipher = CONF.vmware.cipher
+    #     algorithm = cipher.split('-')[0] if cipher else None
+    #
+    #     key = key_manager.create_key(
+    #         context,
+    #         algorithm=algorithm,
+    #         length=CONF.vmware.key_size)
+    #     LOG.debug('KEY ==============================================================> %s' % key)
+
+    #_get_barbican_key_id()
     generate_key_task = session._call_method(
         session.vim,
         "GenerateKey",
@@ -1090,6 +1109,39 @@ def __create_crypto_spec(session, client_factory):
     crypto_spec.cryptoKeyId = generate_key_task.keyId
 
     return crypto_spec
+
+def _get_barbican_key_id(user_id=None):
+
+    fixed_key = CONF.key_manager.fixed_key
+    LOG.debug("FIXED KEY =========================================> %s" % fixed_key)
+    fixed_key_bytes = bytes(
+        binascii.unhexlify(fixed_key))
+    fixed_key_length = len(fixed_key_bytes) * 8
+    ks_loading.register_auth_conf_options(CONF,
+                                          'keystone_authtoken')
+    auth = ks_loading.load_auth_from_conf_options(CONF,
+                                                  'keystone_authtoken')
+
+    sess = ks_session.Session(auth=auth)
+    barbican = barbican_client.Client(session=sess)
+
+    # Create a Barbican secret using the same fixed_key algorithm.
+    secret = barbican.secrets.create(algorithm='aes',
+                                          bit_length=128,
+                                          secret_type='symmetric',
+                                          mode='CBC',
+                                          payload=fixed_key_bytes)
+
+    secret_ref = secret.store()
+    LOG.debug("CREATING BARBICAN KEY4 =============================================================> %s" % secret_ref)
+
+    #Create a Barbican ACL so the user can access the secret.
+    acl = barbican.acls.create(entity_ref=secret_ref,
+                                    users=["admin"])
+    acl.submit()
+
+    _, _, encryption_key_id = secret_ref.rpartition('/')
+    return encryption_key_id
 
 def get_vnc_port(session):
     """Return VNC port for an VM or None if there is no available port."""

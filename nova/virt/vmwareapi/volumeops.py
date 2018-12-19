@@ -96,8 +96,9 @@ class VMwareVolumeOps(object):
         virtual_disk_device = None
         for device in devices:
             if device.__class__.__name__ == "VirtualDisk":
-                virtual_disk_device = device
-                break
+                if device.key == 2001:
+                    virtual_disk_device = device
+                    break
 
         device_spec = vm_util.get_encrypt_spec(session, client_factory, virtual_disk_device)
         device_config_spec.append(device_spec)
@@ -346,6 +347,7 @@ class VMwareVolumeOps(object):
 
     def _attach_volume_vmdk(self, connection_info, instance,
                             adapter_type=None):
+        LOG.debug("ATTACHING VMDK =====================================================>")
         """Attach vmdk volume storage to VM instance."""
         vm_ref = vm_util.get_vm_ref(self._session, instance)
         LOG.debug("_attach_volume_vmdk: %s", connection_info,
@@ -377,6 +379,8 @@ class VMwareVolumeOps(object):
 
     def _attach_volume_iscsi(self, connection_info, instance,
                              adapter_type=None):
+        LOG.debug("ATTACHING SCSI =====================================================>")
+
         """Attach iscsi volume storage to VM instance."""
         vm_ref = vm_util.get_vm_ref(self._session, instance)
         # Attach Volume to VM

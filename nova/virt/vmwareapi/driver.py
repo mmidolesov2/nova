@@ -452,6 +452,7 @@ class VMwareVCDriver(driver.ComputeDriver):
 
     def attach_volume(self, context, connection_info, instance, mountpoint,
                       disk_bus=None, device_type=None, encryption=None):
+        LOG.debug("ATTACHING VOLUME ===================================================================>")
         """Attach volume storage to VM instance."""
         return self._volumeops.attach_volume(connection_info, instance)
 

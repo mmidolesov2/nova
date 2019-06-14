@@ -93,22 +93,20 @@ class DbQuotaDriver(object):
         """
 
         quotas = {}
-        class_quotas = objects.Quotas.get_all_class_by_name(context,
-                                                            quota_class)
+        quota_class_search = quota_class
 
-        # Custom Resource Classess, provide flavors for default
         if quota_class == 'default':
-            flavor_quotas = objects.Quotas.get_all_class_by_name(context,
-                                                                 'flavors')
-        else:
-            flavor_quotas = class_quotas
+            quota_class_search = 'flavors'
 
-        for resource_key, val in six.iteritems(flavor_quotas):
+        class_quotas = objects.Quotas.get_all_class_by_name(context,
+                                                            quota_class_search)
+
+        for resource_key, val in six.iteritems(class_quotas):
             if resource_key == 'class_name':
                 continue
 
             # Set custom resources default quota to 0
-            quotas[resource_key] = flavor_quotas.get(resource_key, 0)
+            quotas[resource_key] = class_quotas.get(resource_key, 0)
 
         for resource in resources.values():
             #if (defaults) or\

@@ -54,6 +54,7 @@ from nova.objects import migrate_data as migrate_data_obj
 from nova.objects import network_request as net_req_obj
 from nova import test
 from nova.tests import fixtures
+from nova.tests.unit.compute import eventlet_utils
 from nova.tests.unit.api.openstack import fakes
 from nova.tests.unit.compute import fake_resource_tracker
 from nova.tests.unit import fake_block_device
@@ -86,6 +87,7 @@ class ComputeManagerUnitTestCase(test.NoDBTestCase):
                                               fakes.FAKE_PROJECT_ID)
 
         self.useFixture(fixtures.SpawnIsSynchronousFixture())
+        self.compute.instance_running_pool = eventlet_utils.SyncPool()
         self.useFixture(fixtures.EventReporterStub())
 
     @mock.patch.object(manager.ComputeManager, '_get_power_state')
@@ -565,7 +567,8 @@ class ComputeManagerUnitTestCase(test.NoDBTestCase):
 
         with mock.patch.object(self.compute,
                                '_build_semaphore') as mock_sem:
-            instance = objects.Instance(uuid=uuidutils.generate_uuid())
+            instance = objects.Instance(uuid=uuidutils.generate_uuid(),
+                                        project_id=1)
             for i in (1, 2, 3):
                 self.compute.build_and_run_instance(self.context, instance,
                                                     mock.sentinel.image,
@@ -4662,6 +4665,7 @@ class ComputeManagerBuildInstanceTestCase(test.NoDBTestCase):
                                                        'fake-node']]}}
 
         self.useFixture(fixtures.SpawnIsSynchronousFixture())
+        self.compute.instance_running_pool = eventlet_utils.SyncPool()
 
         def fake_network_info():
             return network_model.NetworkInfo([{'address': '1.2.3.4'}])
@@ -4728,6 +4732,7 @@ class ComputeManagerBuildInstanceTestCase(test.NoDBTestCase):
     def test_build_and_run_instance_with_unlimited_max_concurrent_builds(self):
         self.flags(max_concurrent_builds=0)
         self.compute = manager.ComputeManager()
+        self.compute.instance_running_pool = eventlet_utils.SyncPool()
         self._test_build_and_run_instance()
 
     @mock.patch.object(objects.InstanceActionEvent,
@@ -5304,7 +5309,7 @@ class ComputeManagerBuildInstanceTestCase(test.NoDBTestCase):
     @mock.patch('nova.compute.stats.Stats.build_failed')
     def test_build_failures_reported(self, mock_failed, mock_dbari):
         mock_dbari.return_value = build_results.FAILED
-        instance = objects.Instance(uuid=uuids.instance)
+        instance = objects.Instance(uuid=uuids.instance, project_id=1)
         for i in range(0, 10):
             self.compute.build_and_run_instance(self.context, instance, None,
                                                 None, None)
@@ -5317,7 +5322,7 @@ class ComputeManagerBuildInstanceTestCase(test.NoDBTestCase):
         self.flags(consecutive_build_service_disable_threshold=0,
                    group='compute')
         mock_dbari.return_value = build_results.FAILED
-        instance = objects.Instance(uuid=uuids.instance)
+        instance = objects.Instance(uuid=uuids.instance, project_id=1)
         for i in range(0, 10):
             self.compute.build_and_run_instance(self.context, instance, None,
                                                 None, None)
@@ -5341,7 +5346,8 @@ class ComputeManagerBuildInstanceTestCase(test.NoDBTestCase):
                 return build_results.ACTIVE
 
         mock_dbari.side_effect = _fake_build
-        instance = objects.Instance(uuid=uuids.instance)
+        instance = objects.Instance(uuid=uuids.instance,
+                                    project_id=self.context.project_id)
         for i in range(0, 10):
             self.compute.build_and_run_instance(self.context, instance, None,
                                                 None, None)
@@ -5356,7 +5362,7 @@ class ComputeManagerBuildInstanceTestCase(test.NoDBTestCase):
                                         mock_failed,
                                         mock_dbari):
         mock_dbari.return_value = build_results.RESCHEDULED
-        instance = objects.Instance(uuid=uuids.instance)
+        instance = objects.Instance(uuid=uuids.instance, project_id=1)
         for i in range(0, 10):
             self.compute.build_and_run_instance(self.context, instance, None,
                                                 None, None)
@@ -5374,7 +5380,7 @@ class ComputeManagerBuildInstanceTestCase(test.NoDBTestCase):
                                        mock_if, mock_notify,
                                        mock_dbari):
         mock_dbari.side_effect = test.TestingException()
-        instance = objects.Instance(uuid=uuids.instance,
+        instance = objects.Instance(uuid=uuids.instance, project_id=1,
                                     task_state=None)
         for i in range(0, 10):
             self.assertRaises(test.TestingException,
@@ -6220,6 +6226,7 @@ class ComputeManagerMigrationTestCase(test.NoDBTestCase):
             status='migrating')
         self.migration.save = mock.MagicMock()
         self.useFixture(fixtures.SpawnIsSynchronousFixture())
+        self.compute.instance_running_pool = eventlet_utils.SyncPool()
         self.useFixture(fixtures.EventReporterStub())
 
     @contextlib.contextmanager

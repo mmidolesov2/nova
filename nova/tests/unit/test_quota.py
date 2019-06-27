@@ -615,19 +615,39 @@ class QuotaEngineTestCase(test.TestCase):
                                             defaults=False,
                                             usages=False)
 
+        """
+            The first call in the assert is passing `quota_obj._resources` 
+            because in QuotaEngine.get_user_quotas we have one call first to 
+            FakeDriver.get_user_quotas with resources from self._resources
+            which is not empty:
+            
+            quota = self._driver.get_user_quotas(
+                    context, self._resources, project_id, user_id,
+                    quota_class=quota_class, defaults=defaults, usages=usages)
+            
+            After that we have update of the quota `quota.update`, but this
+            time self._driver.get_user_quotas is called not with
+            `self._resources`, but with `self.class_resources(context,
+                                                                'flavors')`
+            which returns `{}` so we mock resources in the assert with empty
+            dict. Also that's why we need to pass 'flavors' in the assert
+            
+            For each result1, result2 we have two calls to
+            FakeDriver.get_user_quotas
+        """
         self.assertEqual(driver.called, [
                 ('get_user_quotas', context, quota_obj._resources,
                  'test_project', 'fake_user', None, True, True),
                 ('get_class_quotas', context, {},
                  'flavors', True),
                 ('get_user_quotas', context, {},    # FIXME why {}?
-                 'test_project', 'fake_user', None, True, True),
+                 'test_project', 'fake_user', 'flavors', True, True),
                 ('get_user_quotas', context, quota_obj._resources,
                  'test_project', 'fake_user', 'test_class', False, False),
                 # no 'get_class_quotas', because now 'flavors' are available in
                 # `quota_obj._class_resources`
                 ('get_user_quotas', context, {},    # FIXME why {}?
-                 'test_project', 'fake_user', 'test_class', False, False),
+                 'test_project', 'fake_user', 'flavors', False, False),
                 ])
         self.assertEqual(result1, quota_obj._resources)
         self.assertEqual(result2, quota_obj._resources)

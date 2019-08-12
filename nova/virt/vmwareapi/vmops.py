@@ -1039,6 +1039,7 @@ class VMwareVMOps(object):
     def spawn(self, context, instance, image_meta, injected_files,
               admin_password, network_info, block_device_info=None):
 
+        LOG.debug("BLOCK DEVICE INFO =====================================> %s" % block_device_info)
         client_factory = self._session.vim.client.factory
         image_info = images.VMwareImage.from_image(context,
                                                    instance.image_ref,

@@ -1723,17 +1723,6 @@ class ComputeManager(manager.Manager):
         rt = self._get_resource_tracker()
         rt.build_succeeded(node)
 
-    def create_cinder_volume(self, context, image, instance):
-
-        @utils.synchronized(image['id'])
-        def _locked_volume_create(*args, **kwargs):
-            return self.volume_api.create(*args, **kwargs)
-
-        result = greenthread.spawn(_locked_volume_create, context, 1, "test", "Desc", None,
-                      image_id=image['id'])
-        waited_result = result.wait()
-        LOG.debug("WWAITED RESULT ==================================> %s" % waited_result)
-
     @wrap_exception()
     @reverts_task_state
     @wrap_instance_fault

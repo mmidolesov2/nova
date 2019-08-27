@@ -1137,7 +1137,6 @@ class ComputeTaskManager(base.Base):
                                      admin_password, injected_files,
                                      requested_networks, block_device_mapping,
                                      tags=None):
-        LOG.debug('BDMS: ===================================================> %s' % block_device_mapping)
         # Add all the UUIDs for the instances
         instance_uuids = [spec.instance_uuid for spec in request_specs]
         try:
@@ -1283,12 +1282,6 @@ class ComputeTaskManager(base.Base):
             # pass the objects.
             legacy_secgroups = [s.identifier
                                 for s in request_spec.security_groups]
-
-            with obj_target_cell(instance, cell) as cctxt:
-                bdms = self.compute_rpcapi.create_cinder_volume(cctxt, image, host.service_host,
-                                                         instance)
-
-            LOG.debug('BDMS FETCHED? =======================================> %s' % bdms)
 
             with obj_target_cell(instance, cell) as cctxt:
                 self.compute_rpcapi.build_and_run_instance(

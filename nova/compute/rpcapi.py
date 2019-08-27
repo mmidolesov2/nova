@@ -1204,19 +1204,6 @@ class ComputeAPI(object):
         cctxt.cast(ctxt, 'external_instance_event', instances=instances,
                    events=events)
 
-    def create_cinder_volume(self, ctxt, image, host, instance):
-        kwargs = {
-                  "image": image,
-                  "instance": instance
-                 }
-        LOG.debug('HOST =========================> %s' % host)
-        client = self.router.client(ctxt)
-        version = self._ver(ctxt, '4.19')
-        cctxt = client.prepare(server=host, version=version)
-        result = cctxt.call(ctxt, 'create_cinder_volume', **kwargs)
-
-
-
     def build_and_run_instance(self, ctxt, instance, host, image, request_spec,
             filter_properties, admin_password=None, injected_files=None,
             requested_networks=None, security_groups=None,

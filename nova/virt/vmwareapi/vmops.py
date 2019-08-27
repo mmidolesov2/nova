@@ -1039,7 +1039,6 @@ class VMwareVMOps(object):
     def spawn(self, context, instance, image_meta, injected_files,
               admin_password, network_info, block_device_info=None):
 
-        LOG.debug("BLOCK DEVICE INFO =====================================> %s" % block_device_info)
         client_factory = self._session.vim.client.factory
         image_info = images.VMwareImage.from_image(context,
                                                    instance.image_ref,
@@ -1093,6 +1092,13 @@ class VMwareVMOps(object):
         if block_device_info is not None:
             block_device_mapping = driver.block_device_info_get_mapping(
                 block_device_info)
+
+        if 'volume:create' in instance.flavor.extra_specs and \
+                instance.flavor.extra_specs['volume:create'] == 'True':
+            """`image_ref` is not needed when cinder volume is used as root disk
+            If `image_ref` is not nulled, this will cause creating two disks
+            """
+            instance.image_ref = None
 
         if instance.image_ref and not CONF.vmware.image_as_template:
             self._imagecache.enlist_image(

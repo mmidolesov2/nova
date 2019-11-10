@@ -435,6 +435,32 @@ class SchedulerReportClient(object):
         raise exception.ResourceProviderTraitRetrievalFailed(uuid=rp_uuid)
 
     @safe_connect
+    def get_all_resource_providers(self, context):
+        """Queries the placement API for a resource provider record with the
+        supplied UUID.
+
+        :param context: The security context
+        :param uuid: UUID identifier for the resource provider to look up
+        :return: A dict of resource provider information if found or None if no
+                 such resource provider could be found.
+        :raise: ResourceProviderRetrievalFailed on error.
+        """
+        resp = self.get("/resource_providers",
+                        version=NESTED_PROVIDER_API_VERSION,
+                        global_request_id=context.global_id)
+        if resp.status_code == 200:
+            data = resp.json()
+            return data
+        elif resp.status_code == 404:
+            return None
+        else:
+            placement_req_id = get_placement_request_id(resp)
+            msg = ("[%(placement_req_id)s] Failed to retrieve resource "
+                   "provider record from placement API for UUID %(uuid)s. Got "
+                   "%(status_code)d: %(err_text)s.")
+            raise exception.ResourceProviderRetrievalFailed()
+
+    @safe_connect
     def _get_resource_provider(self, context, uuid):
         """Queries the placement API for a resource provider record with the
         supplied UUID.

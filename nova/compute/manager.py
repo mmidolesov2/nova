@@ -7539,16 +7539,15 @@ class ComputeManager(manager.Manager):
                 # TODO(cdent): Move use of reportclient into resource tracker.
                 self.scheduler_client.reportclient.delete_resource_provider(
                     context, cn, cascade=True)
-
-            for rp in resource_providers:
-                LOG.debug('RP ==========================================================> %s' % rp)
-                if cn.uuid == rp['uuid'] and cn.hypervisor_hostname == rp['name']:
+            for rp in resource_providers['resource_providers']:
+                if cn.uuid == rp['uuid'] and\
+                        cn.hypervisor_hostname == rp['name']:
                     if not cn.deleted:
                         continue
                     else:
                         self.scheduler_client.reportclient. \
-                            delete_resource_provider(context, cn,
-                                                     cascade=True)
+                                        delete_resource_provider(context, cn,
+                                                             cascade=True)
 
         for nodename in nodenames:
             self.update_available_resource_for_node(context, nodename)

@@ -62,6 +62,7 @@ from nova.tests.unit import fake_instance
 from nova.tests.unit import fake_network
 from nova.tests.unit import fake_network_cache_model
 from nova.tests.unit import fake_notifier
+from nova.tests.unit.objects import test_compute_node
 from nova.tests.unit.objects import test_instance_fault
 from nova.tests.unit.objects import test_instance_info_cache
 from nova.tests import uuidsentinel as uuids
@@ -78,7 +79,7 @@ CONF = nova.conf.CONF
 fake_host_list = [mock.sentinel.host1]
 
 
-class ComputeManagerUnitTestCase(test.NoDBTestCase):
+class ComputeManagerUnitTestCase(test.TestCase):
     def setUp(self):
         super(ComputeManagerUnitTestCase, self).setUp()
         self.compute = manager.ComputeManager()
@@ -220,6 +221,7 @@ class ComputeManagerUnitTestCase(test.NoDBTestCase):
         self.assertTrue(log_mock.info.called)
         self.assertIsNone(self.compute._resource_tracker)
 
+    @mock.patch.object(objects.ComputeNode, 'destroy')
     @mock.patch('nova.scheduler.client.report.SchedulerReportClient.'
                 'delete_resource_provider')
     @mock.patch.object(manager.ComputeManager,
@@ -227,7 +229,7 @@ class ComputeManagerUnitTestCase(test.NoDBTestCase):
     @mock.patch.object(fake_driver.FakeDriver, 'get_available_nodes')
     @mock.patch.object(manager.ComputeManager, '_get_compute_nodes_in_db')
     def test_update_available_resource(self, get_db_nodes, get_avail_nodes,
-                                       update_mock, del_rp_mock):
+                                       update_mock, del_rp_mock, mock_cn_destroy):
         db_nodes = [self._make_compute_node('node%s' % i, i)
                     for i in range(1, 5)]
         avail_nodes = set(['node2', 'node3', 'node4', 'node5'])
@@ -250,6 +252,39 @@ class ComputeManagerUnitTestCase(test.NoDBTestCase):
                         cascade=True)
             else:
                 self.assertFalse(db_node.destroy.called)
+
+    @mock.patch.object(db, 'compute_node_delete')
+    @mock.patch('nova.scheduler.client.report.SchedulerReportClient.'
+                'get_all_resource_providers')
+    @mock.patch('nova.scheduler.client.report.SchedulerReportClient.'
+                'delete_resource_provider')
+    @mock.patch.object(manager.ComputeManager,
+                       'update_available_resource_for_node')
+    @mock.patch.object(fake_driver.FakeDriver, 'get_available_nodes')
+    @mock.patch.object(manager.ComputeManager, '_get_compute_nodes_in_db')
+    def test_delete_rp_leftovers(self, get_db_nodes, get_avail_nodes,
+                                       update_mock, del_rp_mock,
+                                       get_all_rp_mock, mock_delete):
+
+        fake_compute_node = objects.ComputeNode._from_db_object(
+            self.context, objects.ComputeNode(),
+            test_compute_node.fake_compute_node)
+        fake_compute_node.deleted = True
+        db_nodes = [fake_compute_node]
+
+        avail_nodes = set([fake_compute_node.hypervisor_hostname])
+        avail_nodes_l = list(avail_nodes)
+        get_avail_nodes.return_value = avail_nodes_l
+        fake_rp_response = {
+            'resource_providers': [{'uuid': fake_compute_node.uuid, 'name':
+                'vm.danplanet.com'}]}
+
+        get_db_nodes.return_value = db_nodes
+        get_all_rp_mock.return_value = fake_rp_response
+        self.compute.update_available_resource(self.context)
+        del_rp_mock.assert_called_once_with(self.context, fake_compute_node,
+                                            cascade=True)
+
 
     @mock.patch('nova.scheduler.client.report.SchedulerReportClient.'
                 'delete_resource_provider')

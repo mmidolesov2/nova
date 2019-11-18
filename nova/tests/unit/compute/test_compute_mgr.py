@@ -253,7 +253,6 @@ class ComputeManagerUnitTestCase(test.TestCase):
             else:
                 self.assertFalse(db_node.destroy.called)
 
-    @mock.patch('nova.context.RequestContext.elevated')
     @mock.patch.object(db, 'compute_node_delete')
     @mock.patch('nova.scheduler.client.report.SchedulerReportClient.'
                 'get_all_resource_providers')
@@ -265,11 +264,7 @@ class ComputeManagerUnitTestCase(test.TestCase):
     @mock.patch.object(manager.ComputeManager, '_get_compute_nodes_in_db')
     def test_delete_rp_leftovers(self, get_db_nodes, get_avail_nodes,
                                        update_mock, del_rp_mock,
-                                       get_all_rp_mock, mock_delete,
-                                       elevated_context):
-
-        self.context.read_deleted = 'yes'
-        elevated_context.return_value = self.context
+                                       get_all_rp_mock, mock_delete):
 
         fake_compute_node = objects.ComputeNode._from_db_object(
             self.context, objects.ComputeNode(),
@@ -284,9 +279,17 @@ class ComputeManagerUnitTestCase(test.TestCase):
             'resource_providers': [{'uuid': fake_compute_node.uuid, 'name':
                 'vm.danplanet.com'}]}
 
-        get_db_nodes.return_value = db_nodes
+        def mock_get_db_nodes(context, **kwargs):
+            if context.read_deleted == 'yes':
+                return db_nodes
+            elif context.read_deleted == 'no':
+                return []
+
+        get_db_nodes.side_effect = mock_get_db_nodes
         get_all_rp_mock.return_value = fake_rp_response
         self.compute.update_available_resource(self.context)
+        get_db_nodes.assert_called_once_with(mock.ANY, use_slave=True,
+                                             startup=False)
         del_rp_mock.assert_called_once_with(self.context, fake_compute_node,
                                             cascade=True)
 

@@ -7534,7 +7534,8 @@ class ComputeManager(manager.Manager):
                          "nodes are %(nodes)s",
                          {'id': cn.id, 'hh': cn.hypervisor_hostname,
                           'nodes': nodenames})
-                cn.destroy()
+                if not cn.deleted:
+                    cn.destroy()
                 # Delete the corresponding resource provider in placement,
                 # along with any associated allocations and inventory.
                 # TODO(cdent): Move use of reportclient into resource tracker.
@@ -7547,12 +7548,11 @@ class ComputeManager(manager.Manager):
                         continue
                     self.scheduler_client.reportclient. \
                                     delete_resource_provider(
-                                                    read_deleted_context, cn,
+                                                    context, cn,
                                                     cascade=True)
 
         for nodename in nodenames:
-            self.update_available_resource_for_node(read_deleted_context,
-                                                                nodename)
+            self.update_available_resource_for_node(context, nodename)
 
 
     def _get_compute_nodes_in_db(self, context, use_slave=False,

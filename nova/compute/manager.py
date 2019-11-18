@@ -7512,10 +7512,11 @@ class ComputeManager(manager.Manager):
         :param startup: True if this is being called when the nova-compute
             service is starting, False otherwise.
         """
-
-        compute_nodes_in_db = self._get_compute_nodes_in_db(context,
-                                                            use_slave=True,
-                                                            startup=startup)
+        read_deleted_context = context.elevated(read_deleted='yes')
+        compute_nodes_in_db = self._get_compute_nodes_in_db(
+                                                        read_deleted_context,
+                                                        use_slave=True,
+                                                        startup=startup)
         try:
             nodenames = set(self.driver.get_available_nodes())
         except exception.VirtDriverNotReady:
@@ -7544,13 +7545,14 @@ class ComputeManager(manager.Manager):
                         cn.hypervisor_hostname == rp['name']:
                     if not cn.deleted:
                         continue
-                    else:
-                        self.scheduler_client.reportclient. \
-                                        delete_resource_provider(context, cn,
-                                                             cascade=True)
+                    self.scheduler_client.reportclient. \
+                                    delete_resource_provider(
+                                                    read_deleted_context, cn,
+                                                    cascade=True)
 
         for nodename in nodenames:
-            self.update_available_resource_for_node(context, nodename)
+            self.update_available_resource_for_node(read_deleted_context,
+                                                                nodename)
 
 
     def _get_compute_nodes_in_db(self, context, use_slave=False,

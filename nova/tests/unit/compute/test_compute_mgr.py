@@ -253,6 +253,7 @@ class ComputeManagerUnitTestCase(test.TestCase):
             else:
                 self.assertFalse(db_node.destroy.called)
 
+    @mock.patch('nova.context.RequestContext.elevated')
     @mock.patch.object(db, 'compute_node_delete')
     @mock.patch('nova.scheduler.client.report.SchedulerReportClient.'
                 'get_all_resource_providers')
@@ -264,7 +265,11 @@ class ComputeManagerUnitTestCase(test.TestCase):
     @mock.patch.object(manager.ComputeManager, '_get_compute_nodes_in_db')
     def test_delete_rp_leftovers(self, get_db_nodes, get_avail_nodes,
                                        update_mock, del_rp_mock,
-                                       get_all_rp_mock, mock_delete):
+                                       get_all_rp_mock, mock_delete,
+                                       elevated_context):
+
+        self.context.read_deleted = 'yes'
+        elevated_context.return_value = self.context
 
         fake_compute_node = objects.ComputeNode._from_db_object(
             self.context, objects.ComputeNode(),

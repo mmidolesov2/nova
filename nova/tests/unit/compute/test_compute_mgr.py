@@ -79,7 +79,7 @@ CONF = nova.conf.CONF
 fake_host_list = [mock.sentinel.host1]
 
 
-class ComputeManagerUnitTestCase(test.TestCase):
+class ComputeManagerUnitTestCase(test.NoDBTestCase):
     def setUp(self):
         super(ComputeManagerUnitTestCase, self).setUp()
         self.compute = manager.ComputeManager()
@@ -179,9 +179,10 @@ class ComputeManagerUnitTestCase(test.TestCase):
 
     def _make_compute_node(self, hyp_hostname, cn_id):
             cn = mock.Mock(spec_set=['hypervisor_hostname', 'id',
-                                     'destroy'])
+                                     'destroy', 'deleted'])
             cn.id = cn_id
             cn.hypervisor_hostname = hyp_hostname
+            cn.deleted = 0
             return cn
 
     @mock.patch.object(manager.ComputeManager, '_get_resource_tracker')
@@ -221,6 +222,9 @@ class ComputeManagerUnitTestCase(test.TestCase):
         self.assertTrue(log_mock.info.called)
         self.assertIsNone(self.compute._resource_tracker)
 
+    @mock.patch('nova.context.RequestContext.elevated')
+    @mock.patch('nova.scheduler.client.report.SchedulerReportClient.'
+                'get_all_resource_providers')
     @mock.patch.object(objects.ComputeNode, 'destroy')
     @mock.patch('nova.scheduler.client.report.SchedulerReportClient.'
                 'delete_resource_provider')
@@ -229,7 +233,11 @@ class ComputeManagerUnitTestCase(test.TestCase):
     @mock.patch.object(fake_driver.FakeDriver, 'get_available_nodes')
     @mock.patch.object(manager.ComputeManager, '_get_compute_nodes_in_db')
     def test_update_available_resource(self, get_db_nodes, get_avail_nodes,
-                                       update_mock, del_rp_mock, mock_cn_destroy):
+                                       update_mock, del_rp_mock,
+                                       mock_cn_destroy, mock_all_rp,
+                                       mock_elevated):
+
+        mock_elevated.return_value = self.context
         db_nodes = [self._make_compute_node('node%s' % i, i)
                     for i in range(1, 5)]
         avail_nodes = set(['node2', 'node3', 'node4', 'node5'])
